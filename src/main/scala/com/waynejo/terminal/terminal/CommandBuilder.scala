@@ -17,7 +17,6 @@ class CommandBuilder(val command: Vector[TerminalCommand]) {
     command
   }
 
-
   def hideCursor(): CommandBuilder = {
     CommandBuilder(command :+ CSI("?25l") :+ CSI("?47h"))
   }

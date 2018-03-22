@@ -1,67 +1,34 @@
 package com.waynejo.terminal.terminal
 
-import java.io.{BufferedOutputStream, OutputStream}
-
+import com.waynejo.terminal.future.Async
 import com.waynejo.terminal.layout.{Layout, LayoutBuilder, XAxis, YAxis}
+import com.waynejo.terminal.unit.Size
 
-class Terminal(layoutBuilder: LayoutBuilder, output: OutputStream = new BufferedOutputStream(System.out)) {
+class Terminal(layoutBuilder: LayoutBuilder) {
 
-  print(CommandBuilder().hideCursor().build())
-  Runtime.getRuntime.exec(Array("sh", "-c", "stty raw -echo < /dev/tty"))
+  val channel: Terminal.Channel = new Terminal.Channel(() => {
+    CommandBuilder().hideCursor().build()
+  })
 
-  def step(): Unit = {
+  def step(size: Size): Vector[TerminalCommand] = {
     clearScreen()
 
-    layoutBuilder.build(Layout(XAxis(0), YAxis(0), XAxis(100), YAxis(100), Nil)).foreach(printLayout)
+    layoutBuilder.build(Layout(XAxis(0), YAxis(0), size.width, size.height, Nil)).flatMap(printLayout).toVector
+  }
 
-    val (width, height) = reedScreenSize()
+  def run(): Unit = {
+    channel.emit(step(Size(XAxis(0), YAxis(0))))
   }
 
   private def clearScreen(){
     print(CommandBuilder().clear().build())
   }
 
-  private def printLayout(layout: Layout){
-    val commands = CommandBuilder().moveTo(layout.left.value, layout.top.value).build()
-    print(commands :+ Text("hello"))
-
+  private def printLayout(layout: Layout): Vector[TerminalCommand] = {
+    CommandBuilder().moveTo(layout.left.value, layout.top.value).build()
   }
+}
 
-  private def reedScreenSize(): (Int, Int) = {
-    print(CommandBuilder().getScreenSize().build())
-    System.in.read()
-    System.in.read()
-
-    var ch = System.in.read()
-    while (';' != ch) {
-      ch = System.in.read()
-    }
-
-    ch = System.in.read()
-    var width = 0
-    while (';' != ch) {
-      width = width + ch
-      ch = System.in.read()
-    }
-
-    var height = 0
-    ch = System.in.read()
-    while ('t' != ch) {
-      height = height + ch
-      ch = System.in.read()
-    }
-    (width, height)
-  }
-
-  def print(commands: Vector[TerminalCommand]): Unit = {
-    commands.foreach(printCommand(output))
-    output.flush()
-  }
-
-  private def printCommand(output: OutputStream)(command: TerminalCommand): Unit = {
-    command match {
-      case CSI(text) => output.write(s"\033[$text".getBytes)
-      case Text(text) => output.write(text.getBytes)
-    }
-  }
+object Terminal {
+  type Channel = Async[Vector[TerminalCommand], Size]
 }
