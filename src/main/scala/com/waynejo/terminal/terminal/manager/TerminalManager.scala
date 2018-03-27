@@ -6,8 +6,10 @@ import com.waynejo.terminal.layout.{Layout, LayoutBuilder}
 import com.waynejo.terminal.terminal._
 
 class TerminalManager(layoutBuilder: LayoutBuilder, callback: () => Vector[TerminalCommand], runtimeChannel: RuntimeManager.Channels, stdInManager: StdInManager.Channels, output: OutputStream = new BufferedOutputStream(System.out)) {
+  private var isRunningState = false
+  private var isClosingNeeded = false
 
-  def step(state: TerminalState.Value): Vector[TerminalCommand] = {
+  private def step(state: TerminalState.Value): Vector[TerminalCommand] = {
     state match {
       case TerminalState.INIT =>
         CommandBuilder().hideCursor().build()
@@ -19,26 +21,33 @@ class TerminalManager(layoutBuilder: LayoutBuilder, callback: () => Vector[Termi
   }
 
   def run(): Unit = {
-    print(CommandBuilder().hideCursor().build())
-    runtimeChannel.emit(Array("sh", "-c", "stty raw -echo < /dev/tty"))
+    isClosingNeeded = false
+    isRunningState = true
 
-    print(step(TerminalState.INIT))
+    new Thread {
 
-    while (stdInManager.isClosed.emit(Unit).getOrElse(true)) {
-      print(step(TerminalState.STEP))
-    }
+      print(CommandBuilder().hideCursor().build())
+      runtimeChannel.emit(Array("sh", "-c", "stty raw -echo < /dev/tty"))
 
-    print(CommandBuilder().showCursor().build())
-    runtimeChannel.emit(Array("sh", "-c", "stty sane < /dev/tty"))
+      print(step(TerminalState.INIT))
+
+      while (stdInManager.isClosed.emit(Unit).getOrElse(true) || isClosingNeeded) {
+        print(step(TerminalState.STEP))
+      }
+
+      print(CommandBuilder().showCursor().build())
+      runtimeChannel.emit(Array("sh", "-c", "stty sane < /dev/tty"))
+
+      isRunningState = false
+    }.start()
   }
 
-  private def clearScreen(){
-    print(CommandBuilder().clear().build())
+  def isRunning(): Boolean = {
+    isRunningState
   }
 
-  private def printLayout(layout: Layout){
-    val commands = CommandBuilder().moveTo(layout.left.value, layout.top.value).build()
-    print(commands :+ Text("hello"))
+  def close(): Unit = {
+    isClosingNeeded = true
   }
 
   private def readByte(): Either[Boolean, Int] = {
@@ -89,7 +98,7 @@ class TerminalManager(layoutBuilder: LayoutBuilder, callback: () => Vector[Termi
     Left(true)
   }
 
-  def print(commands: Vector[TerminalCommand]): Unit = {
+  private def print(commands: Vector[TerminalCommand]): Unit = {
     commands.foreach(printCommand(output))
     output.flush()
   }
