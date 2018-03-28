@@ -42,60 +42,12 @@ class TerminalManager(layoutBuilder: LayoutBuilder, callback: () => Vector[Termi
     }.start()
   }
 
-  def isRunning(): Boolean = {
+  def isRunning: Boolean = {
     isRunningState
   }
 
   def close(): Unit = {
     isClosingNeeded = true
-  }
-
-  private def readByte(): Either[Boolean, Int] = {
-    val value = System.in.read()
-    if (-1 == value) {
-      Left(false)
-    } else {
-      Right(value)
-    }
-  }
-
-  private def readByteUntil(terminator: Char): Either[Boolean, Int] = {
-    readByte().flatMap(x => {
-      if (x == terminator) {
-        Right(0)
-      } else {
-        readByteUntil(terminator).map(y => x + y)
-      }
-    })
-  }
-
-  private def reedScreenSize(): Either[Boolean, (Int, Int)] = {
-    print(CommandBuilder().getScreenSize().build())
-    System.in.read()
-    System.in.read()
-
-    var ch = System.in.read()
-    while (';' != ch) {
-      ch = System.in.read()
-    }
-
-    ch = System.in.read()
-    var width = 0
-    while (';' != ch) {
-      width = width + ch
-      ch = System.in.read()
-    }
-
-    var height = 0
-    ch = System.in.read()
-    while ('t' != ch) {
-      height = height + ch
-      ch = System.in.read()
-    }
-//    println(width)
-//    println(height)
-    //(width, height)
-    Left(true)
   }
 
   private def print(commands: Vector[TerminalCommand]): Unit = {

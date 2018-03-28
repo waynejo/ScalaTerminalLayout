@@ -24,13 +24,19 @@ class StdInManager() {
     new Channel[Unit, Boolean]((Unit) => {
       isClosed
     }),
-    new Channel[Unit, Either[Unit, Option[Byte]]]((Unit) => {
-      Right(Some(0))
+    new Channel[(Array[Byte]) => Option[Array[Byte]], Either[Unit, Option[Array[Byte]]]]((readFunc) => {
+      readFunc(inputs) match {
+        case Some(x) =>
+          inputs = inputs.drop(x.length)
+          Right(Some(x))
+        case None =>
+          Right(None)
+      }
     })
   )
 }
 
 object StdInManager {
-  case class Channels(isClosed: Channel[Unit, Boolean], read: Channel[Unit, Either[Unit, Option[Byte]]])
+  case class Channels(isClosed: Channel[Unit, Boolean], read: Channel[(Array[Byte]) => Option[Array[Byte]], Either[Unit, Option[Array[Byte]]]])
 }
 
