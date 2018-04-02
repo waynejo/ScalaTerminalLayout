@@ -22,7 +22,7 @@ class CommandBuilder(val command: Vector[TerminalCommand]) {
   }
 
   def showCursor(): CommandBuilder = {
-    CommandBuilder(command :+ CSI("?25h") :+ CSI("?25l"))
+    CommandBuilder(command :+ CSI("?25h") :+ CSI("?47l"))
   }
 
   def getScreenSize(): CommandBuilder = {

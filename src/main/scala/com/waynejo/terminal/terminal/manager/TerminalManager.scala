@@ -2,19 +2,29 @@ package com.waynejo.terminal.terminal.manager
 
 import java.io.{BufferedOutputStream, OutputStream}
 
-import com.waynejo.terminal.layout.{Layout, LayoutBuilder}
+import com.waynejo.terminal.layout.LayoutBuilder
 import com.waynejo.terminal.terminal._
 
-class TerminalManager(layoutBuilder: LayoutBuilder, callback: () => Vector[TerminalCommand], runtimeChannel: RuntimeManager.Channels, stdInManager: StdInManager.Channels, output: OutputStream = new BufferedOutputStream(System.out)) {
+class TerminalManager(
+    layoutBuilder: LayoutBuilder,
+    callback: (TerminalManager) => Vector[TerminalCommand],
+    runtimeChannel: RuntimeManager.Channels,
+    stdInManager: StdInManager.Channels,
+    updateDurationMs: Int = 100,
+    output: OutputStream = new BufferedOutputStream(System.out)
+  ) {
+
   private var isRunningState = false
   private var isClosingNeeded = false
+
+  private val _this = this
 
   private def step(state: TerminalState.Value): Vector[TerminalCommand] = {
     state match {
       case TerminalState.INIT =>
         CommandBuilder().hideCursor().build()
       case TerminalState.STEP =>
-        CommandBuilder().clear().build() ++ callback()
+        CommandBuilder().clear().moveTo(0, 0).build()
       case TerminalState.CLOSE =>
         CommandBuilder().showCursor().build()
     }
@@ -25,14 +35,21 @@ class TerminalManager(layoutBuilder: LayoutBuilder, callback: () => Vector[Termi
     isRunningState = true
 
     new Thread {
-
       print(CommandBuilder().hideCursor().build())
       runtimeChannel.emit(Array("sh", "-c", "stty raw -echo < /dev/tty"))
 
       print(step(TerminalState.INIT))
 
-      while (stdInManager.isClosed.emit(Unit).getOrElse(true) || isClosingNeeded) {
-        print(step(TerminalState.STEP))
+      try {
+        while (!stdInManager.isClosed.emit(Unit).getOrElse(true) || isClosingNeeded) {
+          print(step(TerminalState.STEP))
+          print(callback(_this))
+
+          Thread.sleep(updateDurationMs)
+        }
+      } catch {
+        case e: Exception =>
+          e.printStackTrace()
       }
 
       print(CommandBuilder().showCursor().build())
