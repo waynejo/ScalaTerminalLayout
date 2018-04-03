@@ -21,7 +21,7 @@ class StdInManager() {
   }).start()
 
   val channel = StdInManager.Channels(
-    new Channel[Unit, Boolean]((Unit) => {
+    new Channel[Unit, Boolean]((_) => {
       isClosed
     }),
     new Channel[(Array[Byte]) => Option[Array[Byte]], Either[Unit, Option[Array[Byte]]]]((readFunc) => {
