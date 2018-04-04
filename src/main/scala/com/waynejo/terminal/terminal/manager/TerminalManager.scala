@@ -17,7 +17,18 @@ class TerminalManager(
   private var isRunningState = false
   private var isClosingNeeded = false
 
-  private val _this = this
+
+  private def print(commands: Vector[TerminalCommand]): Unit = {
+    commands.foreach(printCommand(output))
+    output.flush()
+  }
+
+  private def printCommand(output: OutputStream)(command: TerminalCommand): Unit = {
+    command match {
+      case CSI(text) => output.write(s"\033[$text".getBytes)
+      case Text(text) => output.write(text.getBytes)
+    }
+  }
 
   private def step(state: TerminalState.Value): Vector[TerminalCommand] = {
     state match {
@@ -35,15 +46,13 @@ class TerminalManager(
     isRunningState = true
 
     new Thread {
-      print(CommandBuilder().hideCursor().build())
-      runtimeChannel.emit(Array("sh", "-c", "stty raw -echo < /dev/tty"))
-
       print(step(TerminalState.INIT))
+      runtimeChannel.emit(Array("sh", "-c", "stty raw -echo < /dev/tty"))
 
       try {
         while (!stdInManager.isClosed.emit(Unit).getOrElse(true) || isClosingNeeded) {
           print(step(TerminalState.STEP))
-          print(callback(_this))
+          print(callback(TerminalManager.this))
 
           Thread.sleep(updateDurationMs)
         }
@@ -65,17 +74,5 @@ class TerminalManager(
 
   def close(): Unit = {
     isClosingNeeded = true
-  }
-
-  private def print(commands: Vector[TerminalCommand]): Unit = {
-    commands.foreach(printCommand(output))
-    output.flush()
-  }
-
-  private def printCommand(output: OutputStream)(command: TerminalCommand): Unit = {
-    command match {
-      case CSI(text) => output.write(s"\033[$text".getBytes)
-      case Text(text) => output.write(text.getBytes)
-    }
   }
 }
