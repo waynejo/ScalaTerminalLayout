@@ -1,21 +1,44 @@
 package com.waynejo.terminal.terminal.manager
 
-import com.waynejo.terminal.channel.Channel
+import java.util.concurrent.LinkedBlockingQueue
+
+import com.waynejo.terminal.channel.{BlockingBox, Channel}
+import com.waynejo.terminal.terminal.manager.StdInManager.ReadFunc
 
 class StdInManager() {
   private var isClosed = false
   private var inputs = Array[Byte]()
+  private val requestQueue = new LinkedBlockingQueue[(ReadFunc, BlockingBox[Array[String]])]()
+
+  def tryReadingFunction(func: ReadFunc, idx: Int = 0): Option[Array[String]] = {
+    if (idx >= inputs.length) {
+      None
+    } else {
+      func(inputs, idx) match {
+        case some@Some(_) =>
+          some
+        case _ =>
+          tryReadingFunction(func, idx + 1)
+      }
+    }
+  }
 
   new Thread(() => {
     while (!isClosed) {
       val value = System.in.read()
       if (-1 != value) {
         isClosed = true
-      } else {
-        this.synchronized {
-          inputs = inputs :+ value.toByte
+      } else if (!requestQueue.isEmpty) {
+        inputs = inputs :+ value.toByte
+        val (func, blockingBox) = requestQueue.peek()
+        tryReadingFunction(func) match {
+          case Some(value) =>
+            requestQueue.poll()
+            inputs = Array()
+
+            blockingBox.set(value)
+          case _ =>
         }
-        isClosed = true
       }
     }
   }).start()
@@ -24,19 +47,17 @@ class StdInManager() {
     new Channel[Unit, Boolean]((_) => {
       isClosed
     }),
-    new Channel[(Array[Byte]) => Option[Array[Byte]], Either[Unit, Option[Array[Byte]]]]((readFunc) => {
-      readFunc(inputs) match {
-        case Some(x) =>
-          inputs = inputs.drop(x.length)
-          Right(Some(x))
-        case None =>
-          Right(None)
-      }
+    new Channel[ReadFunc, Either[Unit, Array[String]]]((readFunc) => {
+      val value = BlockingBox[Array[String]]()
+      requestQueue.add((readFunc, value))
+      Right(value.get())
     })
   )
 }
 
 object StdInManager {
-  case class Channels(isClosed: Channel[Unit, Boolean], read: Channel[(Array[Byte]) => Option[Array[Byte]], Either[Unit, Option[Array[Byte]]]])
+  type ReadFunc = (Array[Byte], Int) => Option[Array[String]]
+
+  case class Channels(isClosed: Channel[Unit, Boolean], read: Channel[ReadFunc, Either[Unit, Array[String]]])
 }
 
