@@ -8,9 +8,9 @@ import com.waynejo.terminal.terminal.manager.StdInManager.ReadFunc
 class StdInManager() {
   private var isClosed = false
   private var inputs = Array[Byte]()
-  private val requestQueue = new LinkedBlockingQueue[(ReadFunc, BlockingBox[Array[String]])]()
+  private val requestQueue = new LinkedBlockingQueue[(ReadFunc, BlockingBox[String])]()
 
-  def tryReadingFunction(func: ReadFunc, idx: Int = 0): Option[Array[String]] = {
+  def tryReadingFunction(func: ReadFunc, idx: Int = 0): Option[String] = {
     if (idx >= inputs.length) {
       None
     } else {
@@ -26,17 +26,17 @@ class StdInManager() {
   new Thread(() => {
     while (!isClosed) {
       val value = System.in.read()
-      if (-1 != value) {
+      if (-1 == value) {
         isClosed = true
       } else if (!requestQueue.isEmpty) {
         inputs = inputs :+ value.toByte
         val (func, blockingBox) = requestQueue.peek()
         tryReadingFunction(func) match {
-          case Some(value) =>
+          case Some(parsedValue) =>
             requestQueue.poll()
             inputs = Array()
 
-            blockingBox.set(value)
+            blockingBox.set(parsedValue)
           case _ =>
         }
       }
@@ -47,17 +47,17 @@ class StdInManager() {
     new Channel[Unit, Boolean]((_) => {
       isClosed
     }),
-    new Channel[ReadFunc, Either[Unit, Array[String]]]((readFunc) => {
-      val value = BlockingBox[Array[String]]()
+    new Channel[ReadFunc, String]((readFunc) => {
+      val value = BlockingBox[String]()
       requestQueue.add((readFunc, value))
-      Right(value.get())
+      value.get()
     })
   )
 }
 
 object StdInManager {
-  type ReadFunc = (Array[Byte], Int) => Option[Array[String]]
+  type ReadFunc = (Array[Byte], Int) => Option[String]
 
-  case class Channels(isClosed: Channel[Unit, Boolean], read: Channel[ReadFunc, Either[Unit, Array[String]]])
+  case class Channels(isClosed: Channel[Unit, Boolean], read: Channel[ReadFunc, String])
 }
 

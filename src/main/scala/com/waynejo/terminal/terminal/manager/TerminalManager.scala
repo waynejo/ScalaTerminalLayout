@@ -2,8 +2,10 @@ package com.waynejo.terminal.terminal.manager
 
 import java.io.{BufferedOutputStream, OutputStream}
 
-import com.waynejo.terminal.layout.LayoutBuilder
+import com.waynejo.terminal.layout.{LayoutBuilder, XAxis, YAxis}
 import com.waynejo.terminal.terminal._
+import com.waynejo.terminal.terminal.reading.ScreenSizeReader
+import com.waynejo.terminal.unit.Size
 
 class TerminalManager(
     layoutBuilder: LayoutBuilder,
@@ -33,9 +35,9 @@ class TerminalManager(
   private def step(state: TerminalState.Value): Vector[TerminalCommand] = {
     state match {
       case TerminalState.INIT =>
-        CommandBuilder().hideCursor().build()
+        CommandBuilder().hideCursor().getScreenSize().build()
       case TerminalState.STEP =>
-        CommandBuilder().clear().moveTo(0, 0).build()
+        CommandBuilder().getScreenSize().clear().moveTo(0, 0).build()
       case TerminalState.CLOSE =>
         CommandBuilder().showCursor().build()
     }
@@ -47,11 +49,15 @@ class TerminalManager(
 
     new Thread {
       print(step(TerminalState.INIT))
+      var screenSize = stdInManager.read.emit(new ScreenSizeReader).map(ScreenSizeReader.parse).getOrElse(Size(XAxis(1), YAxis(1)))
+      println(screenSize)
       runtimeChannel.emit(Array("sh", "-c", "stty raw -echo < /dev/tty"))
 
       try {
         while (!stdInManager.isClosed.emit(Unit).getOrElse(true) || isClosingNeeded) {
           print(step(TerminalState.STEP))
+          screenSize = stdInManager.read.emit(new ScreenSizeReader).map(ScreenSizeReader.parse).getOrElse(Size(XAxis(1), YAxis(1)))
+          println(screenSize)
           print(callback(TerminalManager.this))
 
           Thread.sleep(updateDurationMs)
