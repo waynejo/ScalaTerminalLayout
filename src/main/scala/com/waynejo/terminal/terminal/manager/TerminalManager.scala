@@ -48,10 +48,11 @@ class TerminalManager(
     isRunningState = true
 
     new Thread {
+      runtimeChannel.emit(Array("sh", "-c", "stty raw -echo < /dev/tty"))
       print(step(TerminalState.INIT))
       var screenSize = stdInManager.read.emit(new ScreenSizeReader).map(ScreenSizeReader.parse).getOrElse(Size(XAxis(1), YAxis(1)))
       println(screenSize)
-      runtimeChannel.emit(Array("sh", "-c", "stty raw -echo < /dev/tty"))
+
 
       try {
         while (!stdInManager.isClosed.emit(Unit).getOrElse(true) || isClosingNeeded) {
