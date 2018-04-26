@@ -1,5 +1,5 @@
 package com.waynejo.terminal.terminal
 
 object TerminalState extends Enumeration {
-  val INIT, STEP, CLOSE = Value
+  val INIT, BEFORE_STEP, STEP, CLOSE = Value
 }

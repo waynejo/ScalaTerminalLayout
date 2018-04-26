@@ -36,8 +36,10 @@ class TerminalManager(
     state match {
       case TerminalState.INIT =>
         CommandBuilder().hideCursor().getScreenSize().build()
+      case TerminalState.BEFORE_STEP =>
+        CommandBuilder().getScreenSize().build()
       case TerminalState.STEP =>
-        CommandBuilder().getScreenSize().clear().moveTo(0, 0).build()
+        CommandBuilder().clear().moveTo(0, 0).build()
       case TerminalState.CLOSE =>
         CommandBuilder().showCursor().build()
     }
@@ -56,9 +58,12 @@ class TerminalManager(
 
       try {
         while (!stdInManager.isClosed.emit(Unit).getOrElse(true) || isClosingNeeded) {
-          print(step(TerminalState.STEP))
+          print(step(TerminalState.BEFORE_STEP))
           screenSize = stdInManager.read.emit(new ScreenSizeReader).map(ScreenSizeReader.parse).getOrElse(Size(XAxis(1), YAxis(1)))
+          print(step(TerminalState.STEP))
           println(screenSize)
+          println("\r\n")
+          println("hi")
           print(callback(TerminalManager.this))
 
           Thread.sleep(updateDurationMs)

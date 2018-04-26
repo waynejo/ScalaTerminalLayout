@@ -39,6 +39,8 @@ class StdInManager() {
             blockingBox.set(parsedValue)
           case _ =>
         }
+      } else { // unknown key is considered as finish
+        isClosed = true
       }
     }
   }).start()
